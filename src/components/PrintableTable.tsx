@@ -1,6 +1,7 @@
-import React from 'react';
-import { format, parseISO, differenceInHours, differenceInMinutes, isSameDay, isWithinInterval } from 'date-fns';
+import React, { useState } from 'react';
+import { format, parseISO, differenceInMinutes, isWithinInterval } from 'date-fns';
 import { Event } from '../stores/eventStore';
+import html2pdf from 'html2pdf.js';
 
 interface PrintableTableProps {
   events: Event[];
@@ -21,6 +22,17 @@ const PracticeInfo = () => (
 );
 
 function PrintableTable({ events, reportType, onClose, startDate, endDate }: PrintableTableProps) {
+  const [fontSize, setFontSize] = useState(0.8);
+
+  const tableCellStyle = {
+    fontSize: `${fontSize}em`,
+    padding: '8px 16px',
+    lineHeight: '1.4',
+    verticalAlign: 'middle' as const,
+    height: 'auto',
+    display: 'table-cell' as const,
+  };
+
   const formatDateTime = (dateStr: string) => {
     const date = parseISO(dateStr);
     return format(date, 'dd.MM.yyyy HH:mm');
@@ -42,10 +54,10 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
 
   const calculateTotalHours = (events: Event[]) => {
     const totalMinutes = events.reduce((acc, event) => {
-      if (event.title.toLowerCase().includes('p')) {
-        return acc + 7 * 60; // 7 hours for paid free days
-      } else if (event.title.toLowerCase().includes('u')) {
-        return acc + 0; // 0 hours for unpaid free days
+      if (event.title.toLowerCase().includes('u')) {
+        return acc + 0;
+      } else if (event.title.toLowerCase().includes('p')) {
+        return acc + 7 * 60;
       }
       return acc + differenceInMinutes(parseISO(event.end), parseISO(event.start));
     }, 0);
@@ -54,12 +66,14 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  const filteredEvents = events.filter(event => {
-    const eventDate = parseISO(event.start);
-    const filterStart = parseISO(startDate);
-    const filterEnd = parseISO(endDate);
-    return isWithinInterval(eventDate, { start: filterStart, end: filterEnd });
-  });
+  const filteredEvents = events
+    .filter(event => {
+      const eventDate = parseISO(event.start);
+      const filterStart = parseISO(startDate);
+      const filterEnd = parseISO(endDate);
+      return isWithinInterval(eventDate, { start: filterStart, end: filterEnd });
+    })
+    .sort((a, b) => parseISO(a.start).getTime() - parseISO(b.start).getTime());
 
   const renderRegularTable = () => {
     const regularEvents = filteredEvents.filter(event => {
@@ -78,10 +92,34 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50">
-              <th className="border px-4 py-2 text-left w-16">Lp.</th>
-              <th className="border px-4 py-2 text-left">Data rozpoczęcia</th>
-              <th className="border px-4 py-2 text-left">Data zakończenia</th>
-              <th className="border px-4 py-2 text-left">Liczba godzin</th>
+              <th
+                className="border px-4 py-2 text-left w-16"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Lp.
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Data rozpoczęcia
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Data zakończenia
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Liczba godzin
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -92,26 +130,51 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
               
               return (
                 <tr key={event.id} className="hover:bg-gray-50">
-                  <td className="border px-4 py-2 text-gray-600">
+                  <td
+                    className="border px-4 py-2 text-gray-600"
+                    style={tableCellStyle}
+                    valign="middle"
+                  >
                     {index + 1}
                   </td>
-                  <td className="border px-4 py-2">
+                  <td
+                    className="border px-4 py-2"
+                    style={tableCellStyle}
+                    valign="middle"
+                  >
                     {isSpecialEvent ? formatDate(event.start) : formatDateTime(event.start)}
                   </td>
-                  <td className="border px-4 py-2">
-                    {isSpecialEvent ? (isFreeDay ? 'dzień wolny' : 'dzień wolny płatny') : formatDateTime(event.end)}
+                  <td
+                    className="border px-4 py-2"
+                    style={tableCellStyle}
+                    valign="middle"
+                  >
+                    {isSpecialEvent ? (isFreeDay ? 'urlop bezpłatny' : 'urlop płatny') : formatDateTime(event.end)}
                   </td>
-                  <td className="border px-4 py-2">
-                    {isSpecialEvent ? (isFreePaidDay ? '07:00' : '0') : calculateDuration(event.start, event.end)}
+                  <td
+                    className="border px-4 py-2"
+                    style={tableCellStyle}
+                    valign="middle"
+                  >
+                    {isFreeDay ? '00:00' : (isFreePaidDay ? '07:00' : calculateDuration(event.start, event.end))}
                   </td>
                 </tr>
               );
             })}
             <tr className="bg-gray-50 font-semibold">
-              <td colSpan={3} className="border px-4 py-2 text-right">
+              <td
+                colSpan={3}
+                className="border px-4 py-2 text-right"
+                style={tableCellStyle}
+                valign="middle"
+              >
                 Suma godzin:
               </td>
-              <td className="border px-4 py-2">
+              <td
+                className="border px-4 py-2"
+                style={tableCellStyle}
+                valign="middle"
+              >
                 {calculateTotalHours(regularEvents)}
               </td>
             </tr>
@@ -124,7 +187,6 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
   const renderNightShiftTable = () => {
     const nightEvents = filteredEvents.filter(event => event.title.toLowerCase().includes('d'));
 
-  
     return (
       <>
         <h2 className="text-center text-sm mb-6">
@@ -137,26 +199,83 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50">
-              <th className="border px-4 py-2 text-left w-16">Lp.</th>
-              <th className="border px-4 py-2 text-left">Data rozpoczęcia</th>
-              <th className="border px-4 py-2 text-left">Data zakończenia</th>
-              <th className="border px-4 py-2 text-left">Liczba godzin</th>
+              <th
+                className="border px-4 py-2 text-left w-16"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Lp.
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Data rozpoczęcia
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Data zakończenia
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Liczba godzin
+              </th>
             </tr>
           </thead>
           <tbody>
             {nightEvents.map((event, index) => (
               <tr key={event.id} className="hover:bg-gray-50">
-                <td className="border px-4 py-2 text-gray-600">{index + 1}</td>
-                <td className="border px-4 py-2">{formatDateTime(event.start)}</td>
-                <td className="border px-4 py-2">{formatDateTime(event.end)}</td>
-                <td className="border px-4 py-2">{calculateDuration(event.start, event.end)}</td>
+                <td
+                  className="border px-4 py-2 text-gray-600"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {index + 1}
+                </td>
+                <td
+                  className="border px-4 py-2"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {formatDateTime(event.start)}
+                </td>
+                <td
+                  className="border px-4 py-2"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {formatDateTime(event.end)}
+                </td>
+                <td
+                  className="border px-4 py-2"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {calculateDuration(event.start, event.end)}
+                </td>
               </tr>
             ))}
             <tr className="bg-gray-50 font-semibold">
-              <td colSpan={3} className="border px-4 py-2 text-right">
+              <td
+                colSpan={3}
+                className="border px-4 py-2 text-right"
+                style={tableCellStyle}
+                valign="middle"
+              >
                 Suma godzin:
               </td>
-              <td className="border px-4 py-2">
+              <td
+                className="border px-4 py-2"
+                style={tableCellStyle}
+                valign="middle"
+              >
                 {calculateTotalHours(nightEvents)}
               </td>
             </tr>
@@ -167,8 +286,15 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
   };
 
   const renderPhoneCallTable = () => {
-    const phoneEvents = filteredEvents.filter(event => event.title.toLowerCase().includes('t'));
-    const workEvents = filteredEvents.filter(event => event.title.toLowerCase().includes('w'));
+    const phoneEvents = filteredEvents.filter(event => {
+      const title = event.title.toLowerCase();
+      return title.includes('t') && !title.includes('u') && !title.includes('p');
+    });
+    
+    const workEvents = filteredEvents.filter(event => {
+      const title = event.title.toLowerCase();
+      return title.includes('w') && !title.includes('u') && !title.includes('p');
+    });
 
     const calculateAdjustedDuration = (phoneEvent: Event) => {
       let totalMinutes = differenceInMinutes(parseISO(phoneEvent.end), parseISO(phoneEvent.start));
@@ -225,32 +351,89 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
           ZAŁĄCZNIK B<br />
           /ODDZIAŁ CHIRURGII DZIECIĘCEJ/<br /><br />
            § 2<br />
-          Specyfikacja godzin pracy dyżurowej w zakresie świadczenia usług<br />
+          Specyfikacja godzin pozostawania w gotowości do świadczenia usług<br />
           medycznych za okres od {format(parseISO(startDate), 'dd.MM.yyyy')} do {format(parseISO(endDate), 'dd.MM.yyyy')}
         </h2>
         <table className="w-full border-collapse mb-8">
           <thead>
             <tr className="bg-gray-50">
-              <th className="border px-4 py-2 text-left w-16">Lp.</th>
-              <th className="border px-4 py-2 text-left">Data rozpoczęcia</th>
-              <th className="border px-4 py-2 text-left">Data zakończenia</th>
-              <th className="border px-4 py-2 text-left">Liczba godzin</th>
+              <th
+                className="border px-4 py-2 text-left w-16"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Lp.
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Data rozpoczęcia
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Data zakończenia
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Liczba godzin
+              </th>
             </tr>
           </thead>
           <tbody>
             {phoneEvents.map((event, index) => (
               <tr key={event.id} className="hover:bg-gray-50">
-                <td className="border px-4 py-2 text-gray-600">{index + 1}</td>
-                <td className="border px-4 py-2">{formatDateTime(event.start)}</td>
-                <td className="border px-4 py-2">{formatDateTime(event.end)}</td>
-                <td className="border px-4 py-2">{calculateAdjustedDuration(event)}</td>
+                <td
+                  className="border px-4 py-2 text-gray-600"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {index + 1}
+                </td>
+                <td
+                  className="border px-4 py-2"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {formatDateTime(event.start)}
+                </td>
+                <td
+                  className="border px-4 py-2"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {formatDateTime(event.end)}
+                </td>
+                <td
+                  className="border px-4 py-2 align-middle"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {calculateAdjustedDuration(event)}
+                </td>
               </tr>
             ))}
             <tr className="bg-gray-50 font-semibold">
-              <td colSpan={3} className="border px-4 py-2 text-right">
+              <td
+                colSpan={3}
+                className="border px-4 py-2 text-right"
+                style={tableCellStyle}
+                valign="middle"
+              >
                 Suma godzin:
               </td>
-              <td className="border px-4 py-2">
+              <td
+                className="border px-4 py-2 align-middle"
+                style={tableCellStyle}
+                valign="middle"
+              >
                 {calculatePhoneTotalHours()}
               </td>
             </tr>
@@ -259,32 +442,89 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
 
         <h2 className="text-center text-sm mb-6">
            § 3<br />
-          Specyfikacja godzin pracy dyżurowej w zakresie świadczenia usług<br />
-          medycznych za okres od {format(parseISO(startDate), 'dd.MM.yyyy')} do {format(parseISO(endDate), 'dd.MM.yyyy')}
+           Specyfikacja godzin świadczenia usług medycznych na wezwanie<br />
+          za okres od {format(parseISO(startDate), 'dd.MM.yyyy')} do {format(parseISO(endDate), 'dd.MM.yyyy')}
         </h2>
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50">
-              <th className="border px-4 py-2 text-left w-16">Lp.</th>
-              <th className="border px-4 py-2 text-left">Data rozpoczęcia</th>
-              <th className="border px-4 py-2 text-left">Data zakończenia</th>
-              <th className="border px-4 py-2 text-left">Liczba godzin</th>
+              <th
+                className="border px-4 py-2 text-left w-16"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Lp.
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Data rozpoczęcia
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Data zakończenia
+              </th>
+              <th
+                className="border px-4 py-2 text-left"
+                style={tableCellStyle}
+                valign="middle"
+              >
+                Liczba godzin
+              </th>
             </tr>
           </thead>
           <tbody>
             {workEvents.map((event, index) => (
               <tr key={event.id} className="hover:bg-gray-50">
-                <td className="border px-4 py-2 text-gray-600">{index + 1}</td>
-                <td className="border px-4 py-2">{formatDateTime(event.start)}</td>
-                <td className="border px-4 py-2">{formatDateTime(event.end)}</td>
-                <td className="border px-4 py-2">{calculateDuration(event.start, event.end)}</td>
+                <td
+                  className="border px-4 py-2 text-gray-600"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {index + 1}
+                </td>
+                <td
+                  className="border px-4 py-2"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {formatDateTime(event.start)}
+                </td>
+                <td
+                  className="border px-4 py-2"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {formatDateTime(event.end)}
+                </td>
+                <td
+                  className="border px-4 py-2 align-middle"
+                  style={tableCellStyle}
+                  valign="middle"
+                >
+                  {calculateDuration(event.start, event.end)}
+                </td>
               </tr>
             ))}
             <tr className="bg-gray-50 font-semibold">
-              <td colSpan={3} className="border px-4 py-2 text-right">
+              <td
+                colSpan={3}
+                className="border px-4 py-2 text-right"
+                style={tableCellStyle}
+                valign="middle"
+              >
                 Suma godzin:
               </td>
-              <td className="border px-4 py-2">
+              <td
+                className="border px-4 py-2 align-middle"
+                style={tableCellStyle}
+                valign="middle"
+              >
                 {calculateTotalHours(workEvents)}
               </td>
             </tr>
@@ -295,24 +535,37 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
   };
 
   const renderSummaryTable = () => {
-    const calculateTotalHours = (events: Event[]) => {
-      const totalMinutes = events.reduce((acc, event) => {
-        return acc + differenceInMinutes(parseISO(event.end), parseISO(event.start));
-      }, 0);
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
-      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-    };
-
-    const regularEvents = filteredEvents.filter(event => event.title.toLowerCase().includes('n'));
+    const regularEvents = filteredEvents.filter(event => event.title.toLowerCase().includes('n') || event.title.toLowerCase().includes('u') || event.title.toLowerCase().includes('p'));
     const nightEvents = filteredEvents.filter(event => event.title.toLowerCase().includes('d'));
     const phoneEvents = filteredEvents.filter(event => event.title.toLowerCase().includes('t'));
     const workEvents = filteredEvents.filter(event => event.title.toLowerCase().includes('w'));
 
     const regularHours = calculateTotalHours(regularEvents);
     const nightHours = calculateTotalHours(nightEvents);
-    const phoneHours = calculateTotalHours(phoneEvents);
     const workHours = calculateTotalHours(workEvents);
+
+    let totalPhoneMinutes = 0;
+    phoneEvents.forEach(event => {
+      let eventMinutes = differenceInMinutes(parseISO(event.end), parseISO(event.start));
+      
+      workEvents.forEach(workEvent => {
+        const workStart = parseISO(workEvent.start);
+        const workEnd = parseISO(workEvent.end);
+        const phoneStart = parseISO(event.start);
+        const phoneEnd = parseISO(event.end);
+
+        if (workStart <= phoneEnd && workEnd >= phoneStart) {
+          const overlapStart = workStart > phoneStart ? workStart : phoneStart;
+          const overlapEnd = workEnd < phoneEnd ? workEnd : phoneEnd;
+          const overlapMinutes = differenceInMinutes(overlapEnd, overlapStart);
+          eventMinutes -= overlapMinutes;
+        }
+      });
+      
+      totalPhoneMinutes += eventMinutes;
+    });
+
+    const phoneHours = `${Math.floor(totalPhoneMinutes / 60).toString().padStart(2, '0')}:${(totalPhoneMinutes % 60).toString().padStart(2, '0')}`;
 
     const calculateValue = (hours: string, rate: number) => {
       const [h, m] = hours.split(':').map(Number);
@@ -376,38 +629,88 @@ function PrintableTable({ events, reportType, onClose, startDate, endDate }: Pri
     );
   };
 
+  const generatePDF = () => {
+    const element = document.getElementById('report-content');
+    if (!element) return;
+
+    const opt = {
+      margin: 10,
+      filename: `raport-${reportType}-${format(parseISO(startDate), 'yyyy-MM-dd')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true,
+        windowWidth: 1920,  // Added for consistent rendering
+        onclone: (document) => {
+          // Add custom styles to the cloned document
+          const style = document.createElement('style');
+          style.innerHTML = `
+            td, th {
+              padding: 5px 5px !important;  // Adjust these values as needed
+            }
+          `;
+          document.head.appendChild(style);
+        }
+      },
+      jsPDF: { 
+        unit: 'mm', 
+        format: 'a4', 
+        orientation: 'portrait' 
+      },
+      pagebreak: { 
+        mode: ['css', 'legacy'] 
+      },
+    };
+
+    html2pdf().set(opt).from(element).save();
+  };
+
   return (
     <div className="fixed inset-0 bg-white z-50 overflow-auto">
       <div className="max-w-4xl mx-auto p-8">
-        <div className="flex justify-between items-center mb-8">
-          <PracticeInfo />
-          <div className="space-x-4">
-            <button
-              onClick={() => window.print()}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-            >
-              Drukuj
-            </button>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-            >
-              Zamknij
-            </button>
+        <div className="flex justify-end items-center space-x-4 mb-8">
+          <div className="flex items-center gap-2">
+            <label htmlFor="fontSize" className="text-sm">Rozmiar tekstu:</label>
+            <input
+              type="range"
+              id="fontSize"
+              min="0.6"
+              max="1.2"
+              step="0.02"
+              value={fontSize}
+              onChange={(e) => setFontSize(parseFloat(e.target.value))}
+              className="w-32"
+            />
           </div>
+          <button
+            onClick={generatePDF}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+          >
+            Generuj PDF
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            Drukuj
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+          >
+            Zamknij
+          </button>
         </div>
 
-        {reportType === 'regular' && renderRegularTable()}
-        {reportType === 'night' && renderNightShiftTable()}
-        {reportType === 'phone' && renderPhoneCallTable()}
-        {reportType === 'summary' && renderSummaryTable()}
-
-        <style>{`
-          @media print {
-            button { display: none; }
-            body { padding: 2rem; }
-          }
-        `}</style>
+        <div id="report-content">
+          <div className="mb-8">
+            <PracticeInfo />
+          </div>
+          {reportType === 'regular' && renderRegularTable()}
+          {reportType === 'night' && renderNightShiftTable()}
+          {reportType === 'phone' && renderPhoneCallTable()}
+          {reportType === 'summary' && renderSummaryTable()}
+        </div>
       </div>
     </div>
   );
