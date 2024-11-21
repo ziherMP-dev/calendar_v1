@@ -3,16 +3,32 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Calendar from './components/Calendar';
 import EventTemplates from './components/EventTemplates';
+import AuthForm from './components/AuthForm';
+import { useAuthStore } from './stores/authStore';
+import SignInButton from './components/SignInButton';
 import { EventTemplate } from './stores/eventStore';
 
 const queryClient = new QueryClient();
 
 function App() {
   const [selectedTemplate, setSelectedTemplate] = useState<EventTemplate | undefined>();
+  const { isAuthenticated, isLoading } = useAuthStore();
 
   const handleTemplateSelect = (template: EventTemplate) => {
     setSelectedTemplate(template);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthForm />;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -24,6 +40,7 @@ function App() {
                 <CalendarIcon className="h-6 w-6 text-indigo-600" />
                 <span className="font-semibold text-xl text-gray-900">WorkDay Planner</span>
               </div>
+              <SignInButton />
             </div>
           </div>
         </nav>
