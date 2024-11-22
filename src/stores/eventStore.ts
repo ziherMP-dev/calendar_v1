@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { db } from '../lib/db';
+import { useAuthStore } from './authStore';
 
 export interface Event {
   id: string;
@@ -21,52 +22,117 @@ export interface EventTemplate {
 interface EventState {
   events: Event[];
   templates: EventTemplate[];
-  addEvent: (event: Event) => void;
-  removeEvent: (id: string) => void;
-  addTemplate: (template: EventTemplate) => void;
-  removeTemplate: (id: string) => void;
+  isLoading: boolean;
+  error: string | null;
+  fetchEvents: () => Promise<void>;
+  fetchTemplates: () => Promise<void>;
+  addEvent: (event: Omit<Event, 'id'>) => Promise<void>;
+  removeEvent: (id: string) => Promise<void>;
+  addTemplate: (template: Omit<EventTemplate, 'id'>) => Promise<void>;
+  removeTemplate: (id: string) => Promise<void>;
 }
 
-export const useEventStore = create<EventState>()(
-  persist(
-    (set) => ({
-      events: [],
-      templates: [],
-      addEvent: (event) => 
-        set((state) => ({
-          events: [...state.events, event]
-        })),
-      removeEvent: (id) => 
-        set((state) => ({
-          events: state.events.filter((event) => event.id !== id)
-        })),
-      addTemplate: (template) =>
-        set((state) => ({
-          templates: [...state.templates, template]
-        })),
-      removeTemplate: (id) =>
-        set((state) => ({
-          templates: state.templates.filter((template) => template.id !== id)
-        })),
-    }),
-    {
-      name: 'event-storage',
-      version: 2,
-      storage: createJSONStorage(() => localStorage),
-      migrate: (persistedState: any, version: number) => {
-        if (version === 1) {
-          return {
-            ...persistedState,
-            templates: persistedState.templates.map((t: any) => ({
-              ...t,
-              startTime: '09:00',
-              duration: '01:00',
-              endTime: '10:00',
-            })),
-          };
-        }
-        return persistedState as EventState;
-      },
+export const useEventStore = create<EventState>((set, get) => ({
+  events: [],
+  templates: [],
+  isLoading: false,
+  error: null,
+
+  fetchEvents: async () => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      const events = await db.events.getAll(user.id);
+      set({ events });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to fetch events' });
+    } finally {
+      set({ isLoading: false });
     }
-  )
-);
+  },
+
+  fetchTemplates: async () => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      const templates = await db.templates.getAll(user.id);
+      set({ templates });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to fetch templates' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  addEvent: async (event) => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      const newEvent = await db.events.create({
+        ...event,
+        user_id: user.id,
+      });
+      set(state => ({
+        events: [...state.events, newEvent],
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to add event' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  removeEvent: async (id) => {
+    set({ isLoading: true, error: null });
+    try {
+      await db.events.delete(id);
+      set(state => ({
+        events: state.events.filter(event => event.id !== id),
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to remove event' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  addTemplate: async (template) => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      const newTemplate = await db.templates.create({
+        ...template,
+        user_id: user.id,
+      });
+      set(state => ({
+        templates: [...state.templates, newTemplate],
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to add template' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  removeTemplate: async (id) => {
+    set({ isLoading: true, error: null });
+    try {
+      await db.templates.delete(id);
+      set(state => ({
+        templates: state.templates.filter(template => template.id !== id),
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to remove template' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+}));

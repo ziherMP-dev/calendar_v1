@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Calendar from './components/Calendar';
@@ -7,12 +7,21 @@ import AuthForm from './components/AuthForm';
 import { useAuthStore } from './stores/authStore';
 import SignInButton from './components/SignInButton';
 import { EventTemplate } from './stores/eventStore';
+import { useEventStore } from './stores/eventStore';
 
 const queryClient = new QueryClient();
 
 function App() {
   const [selectedTemplate, setSelectedTemplate] = useState<EventTemplate | undefined>();
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, user } = useAuthStore();
+  const { fetchEvents, fetchTemplates } = useEventStore();
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      fetchEvents();
+      fetchTemplates();
+    }
+  }, [isAuthenticated, user]);
 
   const handleTemplateSelect = (template: EventTemplate) => {
     setSelectedTemplate(template);

@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, startOfWeek, endOfWeek } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import EventModal from './EventModal';
-import { useEvents } from '../hooks/useEvents';
+import { useEventStore } from '../stores/eventStore';
 import CalendarDay from './CalendarDay';
-import { EventTemplate } from '../stores/eventStore';
 
 interface CalendarProps {
   selectedTemplate?: EventTemplate;
@@ -15,7 +14,7 @@ function Calendar({ selectedTemplate, onTemplateUsed }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const { data: events = [] } = useEvents(currentDate);
+  const { events = [], isLoading, error } = useEventStore();
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -37,6 +36,22 @@ function Calendar({ selectedTemplate, onTemplateUsed }: CalendarProps) {
     setIsModalOpen(false);
     onTemplateUsed();
   };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-8 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-lg">
