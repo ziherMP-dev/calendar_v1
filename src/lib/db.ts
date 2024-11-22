@@ -97,7 +97,15 @@ export const db = {
         .single();
 
       if (error) throw error;
-      return data;
+      
+      return {
+        id: data.id,
+        title: data.title,
+        color: data.color,
+        startTime: data.start_time,
+        endTime: data.end_time,
+        duration: data.duration,
+      };
     },
 
     async delete(id: string) {
